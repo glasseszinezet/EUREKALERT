@@ -18,4 +18,5 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:api');
 
 Route::get('41e34ea6-f6f5-47a9-8e00-8300f3d959bb/receiveSMS','UserRequestController@handleUserRequests');
+Route::match(['get','post'],'41e34ea6-f6f5-47a9-8e00-8300f3d959bb/botRoute','BotRequestController@handleUserRequests');
 

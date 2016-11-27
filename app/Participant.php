@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Participant extends Model
 {
-    protected  $fillable = ['first_name','last_name','other_name','location','msisdn'];
+    protected  $fillable = ['first_name','last_name','other_name','location','msisdn','fb_id','gender'];
 
     public function setMsisdnAttribute($phone)
     {

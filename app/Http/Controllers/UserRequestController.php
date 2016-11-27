@@ -57,8 +57,7 @@ class UserRequestController extends Controller
                                 {
                                     if ($count == intval($user_input))
                                     {
-                                        $insertArray = array($option->id,$participant->id,$previousQuestion->id,\Carbon\Carbon::now()->toDateTimeString(),\Carbon\Carbon::now()->toDateTimeString());
-                                        \DB::insert('INSERT INTO answer_participant_question(answer_id,participant_id,question_id,created_at,updated_at) VALUES (?,?,?,?,?)',$insertArray);
+                                        self::storeParticipantAnswer($option, $participant, $previousQuestion);
                                         \Log::debug("Done");
                                         break;
                                     }
@@ -135,5 +134,16 @@ class UserRequestController extends Controller
             $returnString .= "\r\n" . $count . ": " . $option->text;
         }
         return $returnString."\r\nPlease prefix all answers with ".config('custom.keyword');
+    }
+
+    /**
+     * @param $option
+     * @param $participant
+     * @param $previousQuestion
+     */
+    public static function  storeParticipantAnswer($option, $participant, $previousQuestion)
+    {
+        $insertArray = array($option->id, $participant->id, $previousQuestion->id, \Carbon\Carbon::now()->toDateTimeString(), \Carbon\Carbon::now()->toDateTimeString());
+        \DB::insert('INSERT INTO answer_participant_question(answer_id,participant_id,question_id,created_at,updated_at) VALUES (?,?,?,?,?)', $insertArray);
     }
 }

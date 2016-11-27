@@ -19,7 +19,9 @@ class CreateParticipantsTable extends Migration
             $table->string("last_name")->nullable();
             $table->string("other_name")->nullable();
             $table->string("location")->nullable();
+            $table->string("gender")->nullable();
             $table->string("msisdn")->nullable()->unique();
+            $table->string("fb_id")->nullable()->unique();
             $table->timestamps();
         });
     }
