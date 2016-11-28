@@ -133,7 +133,7 @@ class UserRequestController extends Controller
             $count++;
             $returnString .= "\r\n" . $count . ": " . $option->text;
         }
-        return $returnString."\r\nPlease prefix all answers with ".config('custom.keyword');
+        return $returnString."\r\nPlease prefix all answers with ".config('custom.keyword')." e.g ".config('custom.keyword')." 1";
     }
 
     /**
