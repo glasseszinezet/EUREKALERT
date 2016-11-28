@@ -21,7 +21,7 @@ class UserRequestController extends Controller
                 $participant = Participant::firstOrCreate(['msisdn' => $msisdn]);
 
 
-                $user_input = trim($request->input('msg'));
+                $user_input = strtoupper(trim($request->input('msg')));
 
                 if (starts_with($user_input,config("custom.keyword")))
                     $user_input = substr($user_input,strlen(config("custom.keyword")),strlen($user_input));
