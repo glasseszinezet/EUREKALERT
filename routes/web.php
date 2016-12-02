@@ -12,5 +12,7 @@
 */
 
 Route::get('/', function () {
-    return view('welcome');
+    return view('welcome')->with(['iterator' => 0,'questions' => \App\Question::all(), 'panel_classes' => ['panel-default','panel-primary','panel-success','panel-info','panel-warning','panel-danger']]);
 });
+
+Route::resource('userRequest',"UserRequestController");

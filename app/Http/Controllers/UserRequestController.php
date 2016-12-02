@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\AnswerOption;
 use App\Participant;
 use App\Question;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Input;
 
 class UserRequestController extends Controller
 {
@@ -27,65 +29,22 @@ class UserRequestController extends Controller
                     $user_input = substr($user_input,strlen(config("custom.keyword")),strlen($user_input));
 
                 \Log::debug("After triming user input of keyword: ".$user_input);
-
-                $user_level = \Redis::get($msisdn."_prev_level");
-
-                if($user_level == null)
+                if (\Redis::get($msisdn."_answer_expect_") == null)
                 {
-                    \Redis::set($msisdn."_prev_level",1);
-                    $question = Question::first();
+                    $question = Question::find(11);
+                    $returnString = $question->text;
+
+                    $returnString .= $this->getAnswerString($question);
+
+                    \Redis::set($msisdn."_answer_expect_",$question->id);
+                    \Log::debug("Returning ......".$returnString."\r\n");
+                    return $returnString."\r\n";
                 }else
                 {
-                    $user_level++;
-                    if ($user_level > Question::all()->count())
-                    {
-                        \Redis::del($msisdn."_prev_level");
-                        return "Thanks for partaking in our survey. We're very grateful. you can start all over by texting ".config('custom.keyword')." to ".config('custom.shortcode')." across network\r\n";
-                    }else
-                    {
-                        $previousQuestion = Question::findOrFail(($user_level-1));
-                        \Log::debug("Previous Question");
-                        \Log::debug($previousQuestion);
-                        if ($previousQuestion->answerOptions()->count() > 0 )
-                        {
-                            \Log::debug("Got answer options for the above. Proceeding");
-                            if (intval($user_input) > 0 && intval($user_input) <= $previousQuestion->answerOptions()->count())
-                            {
-                                \Log::debug("User Input is correct. Proceeding to do mapping");
-                                $count = 1;
-                                foreach ($previousQuestion->answerOptions as $option)
-                                {
-                                    if ($count == intval($user_input))
-                                    {
-                                        self::storeParticipantAnswer($option, $participant, $previousQuestion);
-                                        \Log::debug("Done");
-                                        break;
-                                    }
-                                    $count++;
-                                }
-                            }else
-                            {
-                                \Log::error("User Input is wrong.... Replying");
-                                return "Sorry. Your input is invalid. Please find below the question again...\r\n".$previousQuestion->text."\r\n".$returnString = $this->getAnswerString($previousQuestion);
-                            }
-                        }else
-                        {
-                            \Log::error("Previous Question doesn't have any answer options attached. this is weird :(");
-                        }
-
-
-                        $question = Question::findOrFail($user_level);
-                        \Redis::set($msisdn."_prev_level",$user_level);
-                    }
-
+                    \Redis::del($msisdn."_answer_expect_");
+                    self::storeParticipantAnswer(AnswerOption::find($user_input), $participant, Question::find(11));
                 }
 
-                $returnString = $question->text;
-
-                $returnString .= $this->getAnswerString($question);
-
-                \Redis::set($msisdn."_answer_expect_",$question->id);
-                return $returnString."\r\n";
             }else
             {
                 return "Invalid/Missing Parameters\r\n";
@@ -94,6 +53,64 @@ class UserRequestController extends Controller
         {
             return "Invalid/Missing Parameters\r\n";
         }
+    }
+
+    public function index()
+    {
+        return redirect("/");
+    }
+    public function store(Request $request)
+    {
+        \Log::debug("New Web User ".$request->getClientIp());
+        $questionExists = false;
+        foreach ($request->all() as $key=>$value)
+        {
+            if (starts_with($key,"question_"))
+            {
+                $questionExists = true;
+                break;
+            }
+        }
+
+        if ($questionExists)
+        {
+            \Log::debug("User Sent some questions. Going ahead to preview them");
+            $requestArray = Input::except("_token");
+            $questionAnswerOptions = array();
+            foreach ($requestArray as $key=>$value)
+            {
+                if (starts_with($key,"question_"))
+                {
+                    $options = explode("_",$value);
+                    array_push($questionAnswerOptions,array("question" => $options[0],'answerOption'=>$options[1]));
+                    array_forget($requestArray,$key);
+                }
+            }
+
+            \Log::debug("Done Extracting Questions and Answers");
+
+            if ($requestArray['first_name'] == null || $requestArray['first_name'] == "")
+                $requestArray['first_name'] = "WEB USER";
+
+            \Log::debug("Getting Participant with the following details");
+            \Log::debug($requestArray);
+
+            $participant = Participant::firstOrCreate(['first_name' => $requestArray['first_name'], 'last_name' => $requestArray['last_name'], 'other_name' => $requestArray['other_name'], 'location' => $requestArray['location'],
+                'occupation' => $requestArray['occupation'],  'gender' => $requestArray['gender'],'msisdn' => $requestArray['msisdn'], 'email' => $requestArray['email'],  ]);
+
+            \Log::debug("Now Mapping Question Participant AnswerOption");
+            foreach ($questionAnswerOptions as $answerOption)
+            {
+                self::storeParticipantAnswer(AnswerOption::find($answerOption['answerOption']),$participant,Question::find($answerOption['question']));
+            }
+            $request->session()->flash("success","Thanks For Partaking in the December 7th Ghana Election Polls. We are grateful");
+            \Log::debug("All done. Responding to User Now");
+        }else
+        {
+            $request->session()->flash("error","Hello, Please Answer At least one question");
+            \Log::error("Web request has no questions added... Asking user to at least answer one question");
+        }
+        return redirect("/");
     }
 
     private function isValidMsisdn($msisdn)
@@ -121,6 +138,25 @@ class UserRequestController extends Controller
         return $msisdn;
     }
 
+    public function getReportingData()
+    {
+        \Log::debug("Log Generator Called....");
+        $result = array();
+        $questions = Question::all();
+        foreach ($questions as $key=>$question)
+        {
+            $categories = array();
+            $data = array();
+            foreach($question->answerOptions as $optionKey=>$option)
+            {
+                array_push($categories,$option->text);
+                $totals = \DB::select("SELECT COUNT('answer_id') AS TOTAL FROM answer_participant_question WHERE question_id = ? AND answer_id = ?",[$question->id, $option->id]);
+                array_push($data,$totals[0]->TOTAL);
+            }
+            array_push($result,array("questionId" => $question->id, "questionText" => $question->text, "data" => $data, "categories" => $categories));
+        }
+        return $result;
+    }
     /**
      * @param $question
      * @return string
@@ -143,7 +179,17 @@ class UserRequestController extends Controller
      */
     public static function  storeParticipantAnswer($option, $participant, $previousQuestion)
     {
-        $insertArray = array($option->id, $participant->id, $previousQuestion->id, \Carbon\Carbon::now()->toDateTimeString(), \Carbon\Carbon::now()->toDateTimeString());
-        \DB::insert('INSERT INTO answer_participant_question(answer_id,participant_id,question_id,created_at,updated_at) VALUES (?,?,?,?,?)', $insertArray);
+        \Log::debug($option);
+        \Log::debug($participant);
+        \Log::debug($previousQuestion);
+         if (isset($option) && $option != null  && isset($participant) && $participant != null && isset($previousQuestion) && $previousQuestion != null)
+         {
+             $insertArray = array($option->id, $participant->id, $previousQuestion->id, date('Y-m-d H:i:s'), date('Y-m-d H:i:s'));
+             \DB::insert('INSERT INTO answer_participant_question(answer_id,participant_id,question_id,created_at,updated_at) VALUES (?,?,?,?,?)', $insertArray);
+         }else
+         {
+             \Log::debug("One option parsed is empty ");
+         }
+
     }
 }

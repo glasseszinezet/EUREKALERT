@@ -33,7 +33,7 @@ class AnswerOptionsTableSeeder extends Seeder
         App\AnswerOption::create(['text' => "Paa Kwesi Ndoum"]);
         App\AnswerOption::create(['text' => "Ivor Greenstreet"]);
         App\AnswerOption::create(['text' => "None of the above"]);
-        App\AnswerOption::create(['text' => "Dissatisfied, but not angry"]);
+        App\AnswerOption::create(['text' => "Dissatisfied"]);
         App\AnswerOption::create(['text' => "Satisfied, but not enthusiastic"]);
 
     }
